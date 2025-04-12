@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# Ensure required positional arguments are provided
+if [[ $# -lt 3 ]]; then
+    echo "Usage: $0 <url> <threads> <filter_words> [-fs <value>] [-w <wordlist>]"
+    exit 1
+fi
+
+# Capture required arguments
+URL=$1
+THREADS=$2
+FILTER_WORDS=$3
+shift 3
+
+# Set the default wordlist
+WORDLIST="/usr/share/seclists/Discovery/Web-Content/common.txt"
+EXTRA_ARGS=""
+
+# Process optional flags
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -fs|-fl)
+            EXTRA_ARGS="$EXTRA_ARGS $1 $2"
+            shift 2
+            ;;
+        -w)
+            WORDLIST="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Run ffuf with optional -fs flag and custom wordlist if provided
+ffuf -u "$URL" -c -w "$WORDLIST" -t "$THREADS" -fw "$FILTER_WORDS" -r -mc all $EXTRA_ARGS
