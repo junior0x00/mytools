@@ -1,0 +1,4 @@
+#!/bin/bash
+ffuf -u $1 -c -w /home/d4rkness/wordlists/js.txt -t $2 -fw $3 -r -mc 200
+
+  #download js wordlist from https://wordlists.assetnote.io/ or any other source
