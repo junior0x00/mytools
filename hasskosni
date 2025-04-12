@@ -1,0 +1,4 @@
+#!/bin/bash
+cat $/home/PATH/SNI/* | grep -e $1
+
+# download sni from https://kaeferjaeger.gay/?dir=sni-ip-ranges
