@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# Colors
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+
+get_cert_info() {
+  ip=$1
+  domain_guess=$(dig +short -x "$ip" | sed 's/\.$//' || echo "")
+
+  if [ -z "$domain_guess" ]; then
+    domain_guess=$(dig +short -x "$ip" | head -n1)
+  fi
+
+  # If still empty, try other DNS info
+  if [ -z "$domain_guess" ]; then
+    alt_dns=$(dig +short ANY "$ip" | grep -v '^$' | tr '\n' ' ')
+    domain_guess="${alt_dns:-unknown}"
+  fi
+
+  cert=$(timeout 5 openssl s_client -connect "$ip:443" -servername "$domain_guess" < /dev/null 2>/dev/null)
+
+  if echo "$cert" | grep -q "BEGIN CERTIFICATE"; then
+    subject=$(echo "$cert" | openssl x509 -noout -subject 2>/dev/null | sed 's/subject=//')
+    echo -e "${GREEN}$ip - subject=$subject${NC}"
+  else
+    echo -e "${YELLOW}$ip DNS: $domain_guess - ${RED}NO SSL${NC}"
+  fi
+}
+
+export -f get_cert_info
+export RED GREEN YELLOW NC
+
+# Multithreaded input handler
+run_multithreaded() {
+  cat "$1" | grep -v '^#' | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | \
+    xargs -P 50 -n 1 -I{} bash -c 'get_cert_info "$@"' _ {}
+}
+
+# Input Options
+if [[ "$1" == "-u" ]]; then
+  get_cert_info "$2"
+elif [[ "$1" == "-l" ]]; then
+  run_multithreaded "$2"
+elif [ -t 0 ]; then
+  echo -e "Usage:\n  $0 -u <IP>\n  $0 -l <ip_list.txt>\n  cat ip.txt | $0"
+else
+  cat - | xargs -P 50 -n 1 -I{} bash -c 'get_cert_info "$@"' _ {}
+fi
