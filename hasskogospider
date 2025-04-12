@@ -1,0 +1,97 @@
+#!/bin/bash
+
+# Function to display help
+show_help() {
+  echo "Usage: $0 -m <mode> [-u <URL>] [-w <wordlist>] [-o <output_dir>]"
+  echo "Modes:"
+  echo "  urls           Extract all URLs excluding specific file types"
+  echo "  js             Extract only JavaScript (.js) files"
+  echo "Options:"
+  echo "  -u <URL>       Specify a single URL to crawl"
+  echo "  -w <wordlist>  Path to a file containing URLs (one per line)"
+  echo "  -o <output_dir> Output directory (optional)"
+  echo "  -h             Display this help message"
+}
+
+# Parse arguments
+while getopts ":m:u:w:o:h" opt; do
+  case ${opt} in
+    m ) mode=$OPTARG ;;
+    u ) url=$OPTARG ;;
+    w ) wordlist=$OPTARG ;;
+    o ) output_dir=$OPTARG ;;
+    h ) show_help; exit 0 ;;
+    \? ) echo "Invalid option: -$OPTARG" >&2; exit 1 ;;
+    : ) echo "Option -$OPTARG requires an argument." >&2; exit 1 ;;
+  esac
+done
+
+# Check for mode
+if [[ -z $mode ]]; then
+  echo "Error: Mode (-m) is required. Use -h for help."
+  exit 1
+fi
+
+# Set default output if not specified
+if [[ -z $output_dir ]]; then
+  output_dir="output"
+fi
+mkdir -p "$output_dir"
+
+# Function for URL crawling mode
+crawl_urls() {
+  echo "Running in URL crawling mode..."
+  process_url() {
+    gospider -s "$1"    -d 3 -t 10 -c 5 -o "$output_dir" -r -a -w --js  | grep -Eo "(http|https)://[a-zA-Z0-9./?=_%:-]*" | grep -vE '\.(js|jpg|png|gif|css|ico|woff|woff2|ttf|eot|mp4|mp3|avi|mov|pdf|zip|rar|tar|gz|exe)$' | sort -u
+
+  }
+
+
+  if [[ -n $url ]]; then
+    echo "Processing single URL: $url"
+    process_url "$url"
+  elif [[ -n $wordlist ]]; then
+    echo "Processing URLs from wordlist: $wordlist"
+    while read -r line; do
+      process_url "$line"
+    done < "$wordlist"
+  elif [[ -p /dev/stdin ]]; then
+    echo "Processing URLs from pipe input"
+    while read -r line; do
+      process_url "$line"
+    done
+  fi
+}
+
+# Function for extracting JS files mode
+extract_js() {
+  echo "Running in JS extraction mode..."
+  process_js() {
+    gospider -s "$1" -d 4 -t 10 -c 5 -o "$output_dir" -r -a -w --js | \
+      grep -Eo "(http|https)://[a-zA-Z0-9./?=_%:-]*" | \
+      grep -E '\\.js$' | \
+      sort -u
+  }
+
+  if [[ -n $url ]]; then
+    echo "Processing single URL: $url"
+    process_js "$url"
+  elif [[ -n $wordlist ]]; then
+    echo "Processing URLs from wordlist: $wordlist"
+    while read -r line; do
+      process_js "$line"
+    done < "$wordlist"
+  elif [[ -p /dev/stdin ]]; then
+    echo "Processing URLs from pipe input"
+    while read -r line; do
+      process_js "$line"
+    done
+  fi
+}
+
+# Execute based on mode
+case $mode in
+  urls ) crawl_urls ;;
+  js ) extract_js ;;
+  * ) echo "Invalid mode: $mode"; show_help; exit 1 ;;
+esac
